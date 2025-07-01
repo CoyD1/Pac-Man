@@ -2,8 +2,29 @@ cmake_minimum_required(VERSION 3.10)
 
 project(PacMan)
 
-include_directories(include)
+# Указываем путь к PDCurses
+set(PDCURSES_DIR "C:/study/summer_practice/Pac-Man/third_party/PDCurses/PDCurses-master")
 
+# Добавляем заголовочные файлы
+include_directories(
+    include
+    ${PDCURSES_DIR}
+)
+
+# Указываем путь к библиотеке
+link_directories(${PDCURSES_DIR}/wincon)
+
+# Список исходных файлов
 file(GLOB SOURCES "src/*.cpp")
 
+# Создание исполняемого файла
 add_executable(pacman ${SOURCES})
+
+# Линковка PDCurses с явным указанием имени файла
+target_link_libraries(pacman ${PDCURSES_DIR}/wincon/pdcurses.a)
+
+# Настройки для PDCurses
+target_compile_definitions(pacman PRIVATE PDC_WIDE)
+
+# Линковка системных библиотек
+target_link_libraries(pacman winmm)
