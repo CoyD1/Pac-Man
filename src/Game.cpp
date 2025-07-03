@@ -1,7 +1,7 @@
 #include "Game.hpp"
 #include <iostream>
 #include <curses.h>
-
+#include <fstream>//библиотека для работы с файлами(нам нужна для загрузки уровня из файла)
 Game::Game() : isRunning(true) {}
 
 Game::~Game(){}
@@ -21,6 +21,38 @@ void Game::initialize(){// готовит терминал к работе с и
         init_pair(3, COLOR_GREEN, COLOR_BLACK);  //точки
     }
     refresh();//Обновление экрана
+    loadLevel("C:/study/summer_practice/Pac-Man/assets/levels/level_one.txt");;//в инициализацию добавил загрузку уровня 
+
+
+
+    // Поиск начальной позиции игрока
+    for (int y = 0; y < levelData.size(); y++) {
+        for (int x = 0; x < levelData[y].size(); x++) {
+            if (levelData[y][x] == 'P') {
+                playerX = x;
+                playerY = y;
+            }
+        }
+    }
+
+}
+
+void Game::tryMovePlayer(int dx, int dy) {
+    int newX = playerX + dx;
+    int newY = playerY + dy;
+    
+    // Проверка на стену
+    if (levelData[newY][newX] != '#') {
+        if (levelData[newY][newX] == '.') {
+            score += 10;
+        }
+
+        // Обновляем позицию игрока
+        levelData[playerY][playerX] = ' ';
+        playerX = newX;
+        playerY = newY;
+        levelData[playerY][playerX] = 'P';
+    }
 }
 
 void Game::processInput() {
@@ -30,8 +62,20 @@ void Game::processInput() {
         case 'Q':
             isRunning = false;
             break;
-        //дальше будет расширяться все о клавишах:ходьба,пауза
+        case KEY_UP: case 'w':
+            tryMovePlayer(0, -1);
+            break;
+        case KEY_DOWN: case 's':
+            tryMovePlayer(0, 1);
+            break;
+        case KEY_LEFT: case 'a':
+            tryMovePlayer(-1, 0);
+            break;
+        case KEY_RIGHT: case 'd':
+            tryMovePlayer(1, 0);
+            break;
     }
+        //дальше будет расширяться все о клавишах:ходьба,пауза
 }
 
 void Game::update() {
@@ -40,21 +84,46 @@ void Game::update() {
 
 void Game::render() {
     clear(); //очистка экрана
+    
+    attron(A_REVERSE); // Инверсный цвет для выделения
+    mvprintw(0, 0, "Score: %d", score);
+    clrtoeol(); // Очистить остаток строки
+    attroff(A_REVERSE);
 
-    //пока реализация такая дальше будет меняться (для теста)
-    //игрок красное P
-    attron(COLOR_PAIR(1));
-    mvprintw(10, 10, "P");
-    attroff(COLOR_PAIR(1));
-    
-    //стена из синих #
-    attron(COLOR_PAIR(2));
-    for(int i = 0; i < 20; i++) {
-        mvprintw(5, 5 + i, "#");
+            //отрисовка уровня из файла
+    for (int y = 0; y < levelData.size(); y++) {
+        for (int x = 0; x < levelData[y].size(); x++) {
+
+            char cell = levelData[y][x];
+
+            
+            switch(cell) {
+                case '#'://стена из синих #
+                    attron(COLOR_PAIR(2));
+                    mvaddch(y + 1, x, cell);
+                    attroff(COLOR_PAIR(2));
+                    break;
+                    
+                case '.'://точка зеленая
+                    attron(COLOR_PAIR(3));
+                    mvaddch(y + 1, x, cell);
+                    attroff(COLOR_PAIR(3));
+                    break;
+                    
+                case 'P'://игрок красное P
+                    attron(COLOR_PAIR(1));
+                    mvaddch(y + 1, x, cell);
+                    attroff(COLOR_PAIR(1));
+                    break;
+                    
+                default://все остальное
+                    mvaddch(y + 1, x, cell);
+            }
+        }
     }
-    attroff(COLOR_PAIR(2));
-    
-    refresh(); //обновление экрана
+
+
+    refresh();//обновление экрана
 }
 
 void Game::cleanup() {
@@ -71,4 +140,20 @@ void Game::run()
     cleanup();
 
     std::cout << "Game running" << std::endl;
+}
+
+//войд функция для загрузки уровня 
+void Game::loadLevel(const std::string& filename) {
+    levelData.clear();
+    std::ifstream file(filename);
+    std::string line;
+    
+    while (std::getline(file, line)) {
+        //Удаление символа возврата каретки (для Windows)
+        if (!line.empty() && line[line.size()-1] == '\r') {
+            line.erase(line.size()-1);
+        }
+        levelData.push_back(line);
+    }
+    file.close();
 }
