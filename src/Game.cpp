@@ -16,16 +16,16 @@ void Game::initialize(){// готовит терминал к работе с и
     refresh();
     if (has_colors()) {
         start_color();
-        init_pair(1, COLOR_RED, COLOR_BLACK); //игрок
+        init_pair(1, COLOR_YELLOW, COLOR_BLACK); //игрок
         init_pair(2, COLOR_BLUE, COLOR_BLACK);   //итены
-        init_pair(3, COLOR_GREEN, COLOR_BLACK);  //точки
+        init_pair(3, COLOR_WHITE, COLOR_BLACK);  //точки
     }
     refresh();//Обновление экрана
     loadLevel("C:/study/summer_practice/Pac-Man/assets/levels/level_one.txt");;//в инициализацию добавил загрузку уровня 
 
 
 
-    // Поиск начальной позиции игрока
+    //поиск начальной позиции плеера
     for (int y = 0; y < levelData.size(); y++) {
         for (int x = 0; x < levelData[y].size(); x++) {
             if (levelData[y][x] == 'P') {
@@ -40,14 +40,11 @@ void Game::initialize(){// готовит терминал к работе с и
 void Game::tryMovePlayer(int dx, int dy) {
     int newX = playerX + dx;
     int newY = playerY + dy;
-    
-    // Проверка на стену
-    if (levelData[newY][newX] != '#') {
+    if (levelData[newY][newX] != '#') {//проверка на стену
         if (levelData[newY][newX] == '.') {
             score += 10;
         }
-
-        // Обновляем позицию игрока
+        //обновление позиции плеера
         levelData[playerY][playerX] = ' ';
         playerX = newX;
         playerY = newY;
@@ -104,13 +101,13 @@ void Game::render() {
                     attroff(COLOR_PAIR(2));
                     break;
                     
-                case '.'://точка зеленая
+                case '.'://точка белая
                     attron(COLOR_PAIR(3));
                     mvaddch(y + 1, x, cell);
                     attroff(COLOR_PAIR(3));
                     break;
                     
-                case 'P'://игрок красное P
+                case 'P'://игрок желтое P
                     attron(COLOR_PAIR(1));
                     mvaddch(y + 1, x, cell);
                     attroff(COLOR_PAIR(1));
@@ -148,8 +145,7 @@ void Game::loadLevel(const std::string& filename) {
     std::ifstream file(filename);
     std::string line;
     
-    while (std::getline(file, line)) {
-        //Удаление символа возврата каретки (для Windows)
+    while (std::getline(file, line)) {//удаление символа возврата каретки в Windows символы перевода строки состоят из двух символов: \r\n поэтмоу надо удалить \r
         if (!line.empty() && line[line.size()-1] == '\r') {
             line.erase(line.size()-1);
         }
