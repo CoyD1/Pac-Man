@@ -2,7 +2,7 @@
 #include <iostream>
 #include <curses.h>
 #include <fstream>//библиотека для работы с файлами(нам нужна для загрузки уровня из файла)
-Game::Game() : isRunning(true) {}
+Game::Game() : isRunning(true) , score(0){}
 
 Game::~Game(){}
 
