@@ -3,7 +3,7 @@
 
 #include <vector>
 #include <string>
-
+#include "Ghost.hpp"
 class Game
 {
 public:
@@ -26,6 +26,10 @@ private:
     void tryMovePlayer(int dx, int dy);
 
      int score;//ОЧКИ ЖЕ СЧИТАТЬ НАДО 
+
+     std::vector<Ghost> ghosts;
+     int lives; //ПОДСЧЕТ жизней
+     std::vector<std::pair<int, int>> findFreePositions(char allowed = '\0');
 };
 
 #endif
