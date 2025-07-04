@@ -2,11 +2,7 @@
 #include <iostream>
 #include <curses.h>
 #include <fstream>//библиотека для работы с файлами(нам нужна для загрузки уровня из файла)
-<<<<<<< HEAD
-Game::Game() : isRunning(true) , score(0){}
-=======
 Game::Game() : isRunning(true) , score(0), lives(3){}
->>>>>>> 2a475b9 (upgrade: Добавление базовой игровой механики Pac-Man)
 
 Game::~Game(){}
 
