@@ -3,13 +3,15 @@
 #include <vector>
 #include <string>
 
-class Ghost {
+class Ghost
+{
 public:
     Ghost(int startX, int startY, int color);
-    
-    void update(const std::vector<std::string>& level);
+    bool canMove(int newX, int newY, const std::vector<std::string> &level);
+
+    void update(const std::vector<std::string> &level);
     void render() const;
-    
+
     int getX() const;
     int getY() const;
 
