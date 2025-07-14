@@ -15,8 +15,14 @@ public:
     int getX() const;
     int getY() const;
 
+    bool isVulnerable();
+    void setVulnerable(bool v);
+    void respawn();
+
 private:
     int x, y;
+    int ghostStartX, ghostStartY;
+    bool vulnerable = false;
     int color;
     int direction;
 };

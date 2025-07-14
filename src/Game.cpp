@@ -1,6 +1,6 @@
 #include "Game.hpp"
 #include <iostream>
-#include <curses.h>
+#include <pdcurses.h>
 #include <fstream> //библиотека для работы с файлами(нам нужна для загрузки уровня из файла)
 Game::Game() : isRunning(true), score(0), lives(3) {}
 
@@ -24,6 +24,7 @@ void Game::initialize()
         init_pair(4, COLOR_MAGENTA, COLOR_BLACK); // Призрак 1
         init_pair(5, COLOR_CYAN, COLOR_BLACK);    // Призрак 2
         init_pair(6, COLOR_RED, COLOR_BLACK);     // Призрак 3
+        init_pair(7, COLOR_WHITE, COLOR_BLUE);    // Режим призраков при съедении усиления
     }
     if (!has_colors())
     {
@@ -91,8 +92,13 @@ bool Game::tryMovePlayer(int dx, int dy)
         else if (levelData[newY][newX] == 'o')
         {
             score += 50;
-            // активируем режим "силы" (пока просто флаг) ТУТ МЫ ДОЛЖНЫ ДОБАВИТЬ СЪЕДАНИЕ ПРИЗРАКОВ ЗА НЕКОТОРЫЙ ПРОМЕЖУТОК
-            // в некст update можно добавить возможность есть призраков
+            powerUpActive = true;
+            powerUpTicks = maxPowerUpTicks;
+
+            for (auto &ghost : ghosts)
+            {
+                ghost.setVulnerable(true);
+            }
         }
         // обновление позиции плеера
         levelData[playerY][playerX] = ' ';
@@ -106,36 +112,55 @@ bool Game::tryMovePlayer(int dx, int dy)
 
 void Game::processInput()
 {
-    int ch = getch();
+    wint_t ch;
+    get_wch(&ch);
+
     switch (ch)
     {
-    case 'q': // выход из консольного приложения
-    case 'Q':
+    case L'q':
+    case L'Q': // выход из консольного приложения
+    case L'й':
+    case L'Й':
         isRunning = false;
         break;
     case KEY_UP:
-    case 'w': // работают и стрелочки так как (KEY_UP KEY_DOWN KEY_LEFT KEY_RIGHT)
+    case L'w':
+    case L'W':
+    case L'ц':
+    case L'Ц': // работают и стрелочки так как (KEY_UP KEY_DOWN KEY_LEFT KEY_RIGHT)
         nextDirX = 0;
         nextDirY = -1;
         break;
     case KEY_DOWN:
-    case 's':
+    case L's':
+    case L'S':
+    case L'ы':
+    case L'Ы':
         nextDirX = 0;
         nextDirY = 1;
         break;
     case KEY_LEFT:
-    case 'a':
+    case L'a':
+    case L'A':
+    case L'ф':
+    case L'Ф':
         nextDirX = -1;
         nextDirY = 0;
         break;
     case KEY_RIGHT:
-    case 'd':
+    case L'd':
+    case L'D':
+    case L'в':
+    case L'В':
         nextDirX = 1;
         nextDirY = 0;
         break;
+
+    case 27:
+        isPaused = !isPaused;
     }
-    // паузу МОЖНО ДОБАВИТЬ (В НЕКСТ РАЗ)
 }
+
 void Game::update()
 {
     // Попытка изменить направление, если возможно
@@ -158,6 +183,20 @@ void Game::update()
         dirY = nextDirY;
     }
 
+    if (powerUpActive)
+    {
+        powerUpTicks--;
+        if (powerUpTicks == 0)
+        {
+            powerUpActive = false;
+
+            for (auto &ghost : ghosts)
+            {
+                ghost.setVulnerable(false);
+            }
+        }
+    }
+
     tryMovePlayer(dirX, dirY);
 
     for (auto &ghost : ghosts)
@@ -166,26 +205,44 @@ void Game::update()
     }
 
     // проверка стычьки с призраками
-    for (const auto &ghost : ghosts)
+    for (auto &ghost : ghosts)
     {
         if (playerX == ghost.getX() && playerY == ghost.getY())
         {
-            lives--;
-            if (lives <= 0)
+            if (ghost.isVulnerable())
             {
-                isRunning = false;
+                score += 200;
+                ghost.respawn();
             }
             else
             {
-                // Возвращаем игрока на стартовую позицию
-                levelData[playerY][playerX] = ' ';
-                playerX = startX;
-                playerY = startY;
-                mvprintw(10, 10, "You died!");
-                refresh();
-                napms(3000);
+                lives--;
+                if (lives <= 0)
+                {
+                    isRunning = false;
+                }
+                else
+                {
+                    // Возвращаем игрока на стартовую позицию
+                    levelData[playerY][playerX] = ' ';
+                    playerX = startX;
+                    playerY = startY;
+                    render(); // отрисовываем поле перед выводом текста
+
+                    // Надпись по центру
+                    std::string deathText = "== YOU DIED ==";
+                    int textY = levelData.size() / 2;
+                    int textX = (levelData[0].size() - deathText.length()) / 2;
+
+                    attron(A_BOLD | A_REVERSE);
+                    mvprintw(textY, textX, "%s", deathText.c_str());
+                    attroff(A_BOLD | A_REVERSE);
+
+                    refresh();
+                    napms(3000); // подождать 3 секунды
+                }
+                break;
             }
-            break;
         }
     }
 
@@ -206,10 +263,26 @@ void Game::update()
 
     if (!pointsLeft)
     {
-        // Уровень пройден!
-        mvprintw(10, 10, "LEVEL COMPLETE!");
+        // Очищаю экран перед надписью
+        clear();
+
+        std::string message = "== LEVEL COMPLETE! ==";
+
+        int winHeight, winWidth;
+        getmaxyx(stdscr, winHeight, winWidth);
+
+        int msgY = winHeight / 2;
+        int msgX = (winWidth - message.size()) / 2;
+
+        attron(A_BOLD | A_REVERSE | COLOR_PAIR(3)); // Белый текст на чёрном фоне
+        mvprintw(msgY - 1, msgX - 2, "=======================");
+        mvprintw(msgY, msgX, "%s", message.c_str());
+        mvprintw(msgY + 1, msgX - 2, "=======================");
+        attroff(A_BOLD | A_REVERSE | COLOR_PAIR(3));
+
         refresh();
-        napms(2000); // Задержка 2 секунды
+        napms(5000);
+
         isRunning = false;
     }
 }
@@ -280,8 +353,24 @@ void Game::run()
     while (isRunning)
     { // цикл работы программы
         processInput();
-        update();
-        render();
+        if (!isPaused)
+        {
+            update();
+            render();
+        }
+        // Если на паузе, ставим надпись по центру.
+        else
+        {
+            std::string pauseText = "== PAUSED ==";
+            int pauseY = levelData.size() / 2;
+            int pauseX = (levelData[0].size() - pauseText.length()) / 2;
+
+            attron(A_BOLD | A_REVERSE);
+            mvprintw(pauseY, pauseX, "%s", pauseText.c_str());
+            attroff(A_BOLD | A_REVERSE);
+
+            refresh();
+        }
     }
     cleanup();
 

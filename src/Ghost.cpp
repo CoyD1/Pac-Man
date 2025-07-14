@@ -1,9 +1,10 @@
 #include "Ghost.hpp"
-#include <curses.h>
+#include <pdcurses.h>
 #include <cstdlib> //длля рандомного шага призрака
+#include <ctime>
 
 Ghost::Ghost(int startX, int startY, int color)
-    : x(startX), y(startY), color(color), direction(rand() % 4) // Изначально у призрака рандомное направление
+    : x(startX), y(startY), color(color), vulnerable(false), ghostStartX(startX), ghostStartY(startY), direction(rand() % 4) // Изначально у призрака рандомное направление
 {
 }
 
@@ -129,12 +130,44 @@ void Ghost::update(const std::vector<std::string> &level)
         }
     }
 }
+bool Ghost::isVulnerable()
+{
+    return vulnerable;
+}
 
+void Ghost::setVulnerable(bool v)
+{
+    vulnerable = v;
+}
+
+void Ghost::respawn()
+{
+    x = ghostStartX;
+    y = ghostStartY;
+}
 void Ghost::render() const
 {
-    attron(COLOR_PAIR(color));
-    mvaddch(y + 1, x, 'G');
-    attroff(COLOR_PAIR(color));
+    if (vulnerable)
+    {
+        if (clock() / CLOCKS_PER_SEC % 2 == 0) // Мигание призрака при съедении усиления
+        {
+            attron(COLOR_PAIR(7) | A_BLINK);
+            mvaddch(y + 1, x, 'g');
+            attroff(COLOR_PAIR(7) | A_BLINK);
+        }
+        else
+        {
+            attron(COLOR_PAIR(7));
+            mvaddch(y + 1, x, 'G');
+            attroff(COLOR_PAIR(7));
+        }
+    }
+    else
+    {
+        attron(COLOR_PAIR(color));
+        mvaddch(y + 1, x, 'G');
+        attroff(COLOR_PAIR(color));
+    }
 }
 
 int Ghost::getX() const { return x; }

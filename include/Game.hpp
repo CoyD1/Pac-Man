@@ -36,6 +36,12 @@ private:
 
     int score; // ОЧКИ ЖЕ СЧИТАТЬ НАДО
 
+    bool powerUpActive = false;
+    int powerUpTicks = 0;
+    int maxPowerUpTicks = 50; // Длительность усиления 5 секунд, так как тик 100 мс
+
+    bool isPaused = false;
+
     std::vector<Ghost> ghosts;
     int lives; // ПОДСЧЕТ жизней
     std::vector<std::pair<int, int>> findFreePositions(char allowed = '\0');
