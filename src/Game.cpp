@@ -308,16 +308,27 @@ void Game::update()
     }
 
     // проверка стычьки с призраками
+    bool collided = false;
     for (auto &ghost : ghosts)
     {
         if ((playerX == ghost.getX() && playerY == ghost.getY()) ||
-            (twoPlayers && player2X == ghost.getX() && player2Y == ghost.getY()))
+            (playerX == ghost.getPrevX() && playerY == ghost.getPrevY()))
+        {
+            collided = true;
+        }
+        if (twoPlayers && ((player2X == ghost.getX() && player2Y == ghost.getY()) ||
+                           (player2X == ghost.getPrevX() && player2Y == ghost.getPrevY())))
+        {
+            collided = true;
+        }
+        if (collided)
         {
             if (ghost.isVulnerable())
             {
                 score += 200;
                 ghost.respawn();
             }
+
             else
             {
                 lives--;
@@ -331,17 +342,16 @@ void Game::update()
                     levelData[playerY][playerX] = ' ';
                     playerX = startX;
                     playerY = startY;
-
+                    levelData[playerY][playerX] = 'P';
                     if (twoPlayers)
-                    {
+                    { // Если есть второй игрок его тоже на его старт возвращаем
                         levelData[player2Y][player2X] = ' ';
                         player2X = start2X;
                         player2Y = start2Y;
+                        levelData[player2Y][player2X] = 'p';
                     }
-                    render(); // отрисовываем поле перед выводом текста
-
-                    // Надпись по центру
-                    std::string deathText = "== YOU DIED ==";
+                    render();
+                    std::string deathText = "== YOU DIED =="; // Надпись в центре
                     int textY = levelData.size() / 2;
                     int textX = (levelData[0].size() - deathText.length()) / 2;
 
@@ -350,7 +360,7 @@ void Game::update()
                     attroff(A_BOLD | A_REVERSE);
 
                     refresh();
-                    napms(3000); // подождать 3 секунды
+                    napms(3000); // На 3 секунды
                 }
                 break;
             }

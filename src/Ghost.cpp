@@ -4,7 +4,7 @@
 #include <ctime>
 
 Ghost::Ghost(int startX, int startY, int color)
-    : x(startX), y(startY), color(color), vulnerable(false), ghostStartX(startX), ghostStartY(startY), direction(rand() % 4) // Изначально у призрака рандомное направление
+    : x(startX), y(startY), color(color), vulnerable(false), ghostStartX(startX), ghostStartY(startY), prevX(startX), prevY(startY), direction(rand() % 4) // Изначально у призрака рандомное направление
 {
 }
 
@@ -16,7 +16,8 @@ bool Ghost::canMove(int newX, int newY, const std::vector<std::string> &level)
 void Ghost::update(const std::vector<std::string> &level)
 {
     int dx = 0, dy = 0;
-
+    prevX = x;
+    prevY = y;
     // Текущие смещения по направлению
     switch (direction)
     {
@@ -172,3 +173,6 @@ void Ghost::render() const
 
 int Ghost::getX() const { return x; }
 int Ghost::getY() const { return y; }
+
+int Ghost::getPrevX() const { return prevX; }
+int Ghost::getPrevY() const { return prevY; }

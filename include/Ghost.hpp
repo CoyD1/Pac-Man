@@ -15,6 +15,9 @@ public:
     int getX() const;
     int getY() const;
 
+    int getPrevX() const;
+    int getPrevY() const;
+
     bool isVulnerable();
     void setVulnerable(bool v);
     void respawn();
@@ -25,5 +28,6 @@ private:
     bool vulnerable = false;
     int color;
     int direction;
+    int prevX, prevY; // Предыдущая позиция призрака
 };
 #endif
