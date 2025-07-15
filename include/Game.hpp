@@ -10,6 +10,12 @@ public:
     Game();
     ~Game();
     void run();
+    bool twoPlayers = true;
+    // Функция для проверки режима на 2 игрока
+    void setTwoPlayers(bool enabled)
+    {
+        twoPlayers = enabled;
+    }
 
 private:
     void initialize();
@@ -33,6 +39,15 @@ private:
     // Желаемое направление
     int nextDirX = 0;
     int nextDirY = 0;
+
+    // 2 игрок
+    int start2Y;
+    int start2X;
+
+    int player2X, player2Y;
+    bool tryMovePlayer2(int dx, int dy);
+    int dir2X = 0, dir2Y = 0;
+    int nextDir2X = 0, nextDir2Y = 0;
 
     int score; // ОЧКИ ЖЕ СЧИТАТЬ НАДО
 

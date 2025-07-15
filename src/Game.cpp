@@ -9,7 +9,6 @@ Game::~Game() {}
 void Game::initialize()
 { // готовит терминал к работе с игрой
     // инициализация Curses
-    initscr();
     cbreak();
     noecho();
     keypad(stdscr, TRUE);
@@ -49,6 +48,25 @@ void Game::initialize()
                 levelData[y][x] = ' '; // Очищаем стартовую позицию
                 startY = y;
                 startX = x;
+            }
+        }
+    }
+    // Поиск начальной позции второго игрока
+    for (int y = 0; y < levelData.size(); y++)
+    {
+        for (int x = 0; x < levelData[y].size(); x++)
+        {
+            if (levelData[y][x] == 'T' && twoPlayers)
+            {
+                player2X = x;
+                player2Y = y;
+                levelData[y][x] = ' '; // убираем метку стартовой позиции
+                start2X = x;
+                start2Y = y;
+            }
+            else if (levelData[y][x] == 'T')
+            {
+                levelData[y][x] = '.';
             }
         }
     }
@@ -110,6 +128,48 @@ bool Game::tryMovePlayer(int dx, int dy)
     return false;
 }
 
+bool Game::tryMovePlayer2(int d2x, int d2y)
+{
+    int new2X = player2X + d2x;
+    int new2Y = player2Y + d2y;
+
+    // проверка телепортации по краям карты
+    if (new2X < 0)
+        new2X = levelData[new2Y].size() - 1;
+    if (new2X >= levelData[new2Y].size())
+        new2X = 0;
+    if (new2Y < 0)
+        new2Y = levelData.size() - 1;
+    if (new2Y >= levelData.size())
+        new2Y = 0;
+
+    if (levelData[new2Y][new2X] != '#')
+    { // проверка на стену
+        if (levelData[new2Y][new2X] == '.')
+        {
+            score += 10;
+        }
+        else if (levelData[new2Y][new2X] == 'o')
+        {
+            score += 50;
+            powerUpActive = true;
+            powerUpTicks = maxPowerUpTicks;
+
+            for (auto &ghost : ghosts)
+            {
+                ghost.setVulnerable(true);
+            }
+        }
+        // обновление позиции плеера
+        levelData[player2Y][player2X] = ' ';
+        player2X = new2X;
+        player2Y = new2Y;
+        levelData[player2Y][player2X] = 'p';
+        return true;
+    }
+    return false;
+}
+
 void Game::processInput()
 {
     wint_t ch;
@@ -123,15 +183,14 @@ void Game::processInput()
     case L'Й':
         isRunning = false;
         break;
-    case KEY_UP:
+    // Управление первого игрока на WASD
     case L'w':
     case L'W':
     case L'ц':
-    case L'Ц': // работают и стрелочки так как (KEY_UP KEY_DOWN KEY_LEFT KEY_RIGHT)
+    case L'Ц':
         nextDirX = 0;
         nextDirY = -1;
         break;
-    case KEY_DOWN:
     case L's':
     case L'S':
     case L'ы':
@@ -139,7 +198,6 @@ void Game::processInput()
         nextDirX = 0;
         nextDirY = 1;
         break;
-    case KEY_LEFT:
     case L'a':
     case L'A':
     case L'ф':
@@ -147,7 +205,6 @@ void Game::processInput()
         nextDirX = -1;
         nextDirY = 0;
         break;
-    case KEY_RIGHT:
     case L'd':
     case L'D':
     case L'в':
@@ -155,7 +212,27 @@ void Game::processInput()
         nextDirX = 1;
         nextDirY = 0;
         break;
-
+        // Управление второго игрока на стрелочках
+        if (twoPlayers)
+        {
+        case KEY_UP:
+            nextDir2X = 0;
+            nextDir2Y = -1;
+            break;
+        case KEY_DOWN:
+            nextDir2X = 0;
+            nextDir2Y = 1;
+            break;
+        case KEY_LEFT:
+            nextDir2X = -1;
+            nextDir2Y = 0;
+            break;
+        case KEY_RIGHT:
+            nextDir2X = 1;
+            nextDir2Y = 0;
+            break;
+        }
+    // Пауза на Esc
     case 27:
         isPaused = !isPaused;
     }
@@ -183,6 +260,28 @@ void Game::update()
         dirY = nextDirY;
     }
 
+    // Попытка поменять направление 2 игрока
+    if (twoPlayers)
+    {
+        int test2X = player2X + nextDir2X;
+        int test2Y = player2Y + nextDir2Y;
+
+        if (test2X < 0)
+            test2X = levelData[test2Y].size() - 1;
+        if (test2X >= levelData[test2Y].size())
+            test2X = 0;
+        if (test2Y < 0)
+            test2Y = levelData.size() - 1;
+        if (test2Y >= levelData.size())
+            test2Y = 0;
+
+        if (levelData[test2Y][test2X] != '#')
+        {
+            dir2X = nextDir2X;
+            dir2Y = nextDir2Y;
+        }
+    }
+
     if (powerUpActive)
     {
         powerUpTicks--;
@@ -198,6 +297,10 @@ void Game::update()
     }
 
     tryMovePlayer(dirX, dirY);
+    if (twoPlayers)
+    {
+        tryMovePlayer2(dir2X, dir2Y);
+    }
 
     for (auto &ghost : ghosts)
     {
@@ -207,7 +310,8 @@ void Game::update()
     // проверка стычьки с призраками
     for (auto &ghost : ghosts)
     {
-        if (playerX == ghost.getX() && playerY == ghost.getY())
+        if ((playerX == ghost.getX() && playerY == ghost.getY()) ||
+            (twoPlayers && player2X == ghost.getX() && player2Y == ghost.getY()))
         {
             if (ghost.isVulnerable())
             {
@@ -227,6 +331,13 @@ void Game::update()
                     levelData[playerY][playerX] = ' ';
                     playerX = startX;
                     playerY = startY;
+
+                    if (twoPlayers)
+                    {
+                        levelData[player2Y][player2X] = ' ';
+                        player2X = start2X;
+                        player2Y = start2Y;
+                    }
                     render(); // отрисовываем поле перед выводом текста
 
                     // Надпись по центру
@@ -324,7 +435,14 @@ void Game::render()
                 mvaddch(y + 1, x, cell);
                 attroff(COLOR_PAIR(1));
                 break;
-
+            case 'p':
+                if (twoPlayers)
+                {
+                    attron(COLOR_PAIR(5));
+                    mvaddch(player2Y + 1, player2X, 'p');
+                    attroff(COLOR_PAIR(5));
+                }
+                break;
             default: // все остальное
                 mvaddch(y + 1, x, cell);
             }
