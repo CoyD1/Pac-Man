@@ -2,9 +2,13 @@
 #include <pdcurses.h>
 #include <cstdlib> //длля рандомного шага призрака
 #include <ctime>
+#include <queue>
+#include <map>
 
-Ghost::Ghost(int startX, int startY, int color)
-    : x(startX), y(startY), color(color), vulnerable(false), ghostStartX(startX), ghostStartY(startY), prevX(startX), prevY(startY), direction(rand() % 4) // Изначально у призрака рандомное направление
+Ghost::Ghost(int startX, int startY, int color, GhostType t)
+    : x(startX), y(startY), color(color), type(t),
+      vulnerable(false), ghostStartX(startX), ghostStartY(startY),
+      prevX(startX), prevY(startY), direction(rand() % 4) // Изначально у призрака рандомное направление
 {
 }
 
@@ -12,29 +16,120 @@ bool Ghost::canMove(int newX, int newY, const std::vector<std::string> &level)
 {
     return newY >= 0 && newY < level.size() && newX >= 0 && newX < level[newY].size() && level[newY][newX] != '#';
 }
+int Ghost::getDirectionBFS(int targetX, int targetY, const std::vector<std::string> &level)
+{
+    std::queue<std::pair<int, int>> q;
+    std::map<std::pair<int, int>, std::pair<int, int>> parent;
+    std::map<std::pair<int, int>, int> dirFromStart;
+
+    std::pair<int, int> start{x, y};
+    q.push(start);
+    parent[start] = {-1, -1};
+
+    std::vector<std::pair<int, int>> dirs = {{0, -1}, {0, 1}, {-1, 0}, {1, 0}};
+
+    while (!q.empty())
+    {
+        auto [cx, cy] = q.front();
+        q.pop();
+
+        if (cx == targetX && cy == targetY)
+            break;
+
+        for (int i = 0; i < 4; i++)
+        {
+            int nx = cx + dirs[i].first;
+            int ny = cy + dirs[i].second;
+            std::pair<int, int> np{nx, ny};
+
+            if (!canMove(nx, ny, level))
+                continue;
+            if (parent.count(np))
+                continue;
+
+            parent[np] = {cx, cy};
+
+            // Если cx, cy — старт, то np — сосед, направление от старта в np — i
+            if (cx == start.first && cy == start.second)
+                dirFromStart[np] = i;
+            else
+                dirFromStart[np] = dirFromStart[{cx, cy}]; // передаем направление дальше по пути
+
+            q.push(np);
+        }
+    }
+
+    std::pair<int, int> cur{targetX, targetY};
+
+    if (!parent.count(cur))
+        return direction; // путь не найден — вернуть текущее направление
+
+    // Вернуть направление из start в первую клетку пути (dirFromStart для cur)
+    if (dirFromStart.count(cur))
+        return dirFromStart[cur];
+
+    return direction;
+}
+
+void Ghost::calculateTarget(int playerX, int playerY, int dirX, int dirY, const Ghost *blinky, const std::vector<std::string> &level)
+{
+    int tx = playerX, ty = playerY;
+    switch (type)
+    {
+    case GhostType::BLINKY:
+        break;
+    case GhostType::PINKY:
+        tx += 4 * dirX;
+        ty += 4 * dirY;
+        break;
+    case GhostType::INKY:
+        if (blinky)
+        {
+            int px = playerX + 2 * dirX, py = playerY + 2 * dirY;
+            tx = px + (px - blinky->getX());
+            ty = py + (py - blinky->getY());
+        }
+        else
+        {
+            tx = playerX;
+            ty = playerY;
+        }
+        break;
+    case GhostType::CLYDE:
+    {
+        int dx = x - playerX, dy = y - playerY;
+        int dist = abs(dx) + abs(dy);
+        if (dist < 8)
+        {
+            tx = 1;
+            ty = level.size() - 2;
+        }
+    }
+    break;
+    }
+    direction = getDirectionBFS(tx, ty, level);
+}
 
 void Ghost::update(const std::vector<std::string> &level)
 {
-    int dx = 0, dy = 0;
     prevX = x;
     prevY = y;
-    // Текущие смещения по направлению
+    int dx = 0, dy = 0;
     switch (direction)
     {
     case 0:
         dy = -1;
-        break; // вверх
+        break;
     case 1:
         dy = 1;
-        break; // вниз
+        break;
     case 2:
         dx = -1;
-        break; // влево
+        break;
     case 3:
         dx = 1;
-        break; // вправо
+        break;
     }
-
     if (canMove(x + dx, y + dy, level))
     {
         x += dx;
@@ -42,95 +137,10 @@ void Ghost::update(const std::vector<std::string> &level)
     }
     else
     {
-        // Собираем все допустимые направления
-        std::vector<int> validDirections;
-        for (int dir = 0; dir < 4; dir++)
-        {
-            int testDx = 0, testDy = 0;
-            switch (dir)
-            {
-            case 0:
-                testDy = -1;
-                break;
-            case 1:
-                testDy = 1;
-                break;
-            case 2:
-                testDx = -1;
-                break;
-            case 3:
-                testDx = 1;
-                break;
-            }
-            if (canMove(x + testDx, y + testDy, level))
-            {
-                validDirections.push_back(dir);
-            }
-        }
-
-        if (!validDirections.empty())
-        {
-            direction = validDirections[rand() % validDirections.size()];
-        }
-
-        // Повторно устанавливаем dx/dy для новой direction
-        dx = dy = 0;
-        switch (direction)
-        {
-        case 0:
-            dy = -1;
-            break;
-        case 1:
-            dy = 1;
-            break;
-        case 2:
-            dx = -1;
-            break;
-        case 3:
-            dx = 1;
-            break;
-        }
-
-        if (canMove(x + dx, y + dy, level))
-        {
-            x += dx;
-            y += dy;
-        }
-    }
-    // С шансом 30% — смена направления
-    if (rand() % 100 < 30)
-    {
-        std::vector<int> validDirections;
-        for (int dir = 0; dir < 4; dir++)
-        {
-            int testDx = 0, testDy = 0;
-            switch (dir)
-            {
-            case 0:
-                testDy = -1;
-                break;
-            case 1:
-                testDy = 1;
-                break;
-            case 2:
-                testDx = -1;
-                break;
-            case 3:
-                testDx = 1;
-                break;
-            }
-            if (canMove(x + testDx, y + testDy, level))
-            {
-                validDirections.push_back(dir);
-            }
-        }
-
-        if (!validDirections.empty())
-        {
-            direction = validDirections[rand() % validDirections.size()];
-        }
+        direction = rand() % 4; // если нет возможности двигаться в направлении выбираем рандомное
     }
 }
+
 bool Ghost::isVulnerable()
 {
     return vulnerable;
@@ -150,18 +160,9 @@ void Ghost::render() const
 {
     if (vulnerable)
     {
-        if (clock() / CLOCKS_PER_SEC % 2 == 0) // Мигание призрака при съедении усиления
-        {
-            attron(COLOR_PAIR(7) | A_BLINK);
-            mvaddch(y + 1, x, 'g');
-            attroff(COLOR_PAIR(7) | A_BLINK);
-        }
-        else
-        {
-            attron(COLOR_PAIR(7));
-            mvaddch(y + 1, x, 'G');
-            attroff(COLOR_PAIR(7));
-        }
+        attron(COLOR_PAIR(7) | A_BLINK);
+        mvaddch(y + 1, x, 'g');
+        attroff(COLOR_PAIR(7) | A_BLINK);
     }
     else
     {

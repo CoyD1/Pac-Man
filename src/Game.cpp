@@ -71,15 +71,15 @@ void Game::initialize()
         }
     }
 
-    auto ghostSpawns = findFreePositions('G');
-
-    std::vector<int> ghostColors = {4, 5, 6}; // MAGENTA, CYAN, RED
-
-    for (int i = 0; i < ghostSpawns.size() && i < ghostColors.size(); i++)
+    std::vector<GhostType> ghostTypes = {
+        GhostType::BLINKY, GhostType::PINKY,
+        GhostType::INKY, GhostType::CLYDE};
+    auto spawns = findFreePositions('G');
+    for (int i = 0; i < spawns.size() && i < ghostTypes.size(); ++i)
     {
-        auto [x, y] = ghostSpawns[i];
-        ghosts.emplace_back(x, y, ghostColors[i]);
-        levelData[y][x] = ' '; // очищаем позицию призрака
+        auto [gx, gy] = spawns[i];
+        ghosts.emplace_back(gx, gy, 4 + i, ghostTypes[i]);
+        levelData[gy][gx] = ' ';
     }
 
     // Помещаем игрока на стартовую позицию
@@ -302,36 +302,52 @@ void Game::update()
         tryMovePlayer2(dir2X, dir2Y);
     }
 
-    for (auto &ghost : ghosts)
+    Ghost *blinky = nullptr;
+    for (auto &g : ghosts)
+        if (g.getType() == GhostType::BLINKY)
+            blinky = &g;
+    for (auto &g : ghosts)
     {
-        ghost.update(levelData);
+        g.calculateTarget(playerX, playerY, dirX, dirY, blinky, levelData);
+        g.update(levelData);
     }
-
     // проверка стычьки с призраками
     bool collided = false;
     for (auto &ghost : ghosts)
     {
         if ((playerX == ghost.getX() && playerY == ghost.getY()) ||
-            (playerX == ghost.getPrevX() && playerY == ghost.getPrevY()))
-        {
-            collided = true;
-        }
-        if (twoPlayers && ((player2X == ghost.getX() && player2Y == ghost.getY()) ||
-                           (player2X == ghost.getPrevX() && player2Y == ghost.getPrevY())))
-        {
-            collided = true;
-        }
-        if (collided)
+            (playerX == ghost.getPrevX() && playerY == ghost.getPrevY()) ||
+            (twoPlayers && ((player2X == ghost.getX() && player2Y == ghost.getY()) ||
+                            (player2X == ghost.getPrevX() && player2Y == ghost.getPrevY()))))
         {
             if (ghost.isVulnerable())
             {
                 score += 200;
-                ghost.respawn();
-            }
 
+                // Очистка старой позиции призрака, если она в пределах карты
+                if (ghost.getY() >= 0 && ghost.getY() < (int)levelData.size() &&
+                    ghost.getX() >= 0 && ghost.getX() < (int)levelData[ghost.getY()].size())
+                {
+                    levelData[ghost.getY()][ghost.getX()] = ' ';
+                }
+
+                ghost.respawn();
+
+                // После respawn координаты должны быть достоверные, но на всякий случай проверим
+                if (ghost.getY() >= 0 && ghost.getY() < (int)levelData.size() &&
+                    ghost.getX() >= 0 && ghost.getX() < (int)levelData[ghost.getY()].size())
+                {
+                    levelData[ghost.getY()][ghost.getX()] = 'G';
+                }
+                ghost.setVulnerable(false);
+                render();
+
+                break; // Выходим из цикла, чтобы не работать с тем же призраком
+            }
             else
             {
                 lives--;
+
                 if (lives <= 0)
                 {
                     isRunning = false;
@@ -343,15 +359,34 @@ void Game::update()
                     playerX = startX;
                     playerY = startY;
                     levelData[playerY][playerX] = 'P';
+
                     if (twoPlayers)
-                    { // Если есть второй игрок его тоже на его старт возвращаем
+                    {
                         levelData[player2Y][player2X] = ' ';
                         player2X = start2X;
                         player2Y = start2Y;
                         levelData[player2Y][player2X] = 'p';
                     }
+                    // Респавн призраков
+                    for (auto &ghost : ghosts)
+                    {
+                        if (ghost.getY() >= 0 && ghost.getY() < (int)levelData.size() &&
+                            ghost.getX() >= 0 && ghost.getX() < (int)levelData[ghost.getY()].size())
+                        {
+                            levelData[ghost.getY()][ghost.getX()] = ' ';
+                        }
+                        ghost.respawn();
+                        if (ghost.getY() >= 0 && ghost.getY() < (int)levelData.size() &&
+                            ghost.getX() >= 0 && ghost.getX() < (int)levelData[ghost.getY()].size())
+                        {
+                            levelData[ghost.getY()][ghost.getX()] = 'G';
+                        }
+                        ghost.setVulnerable(false);
+                    }
+
                     render();
-                    std::string deathText = "== YOU DIED =="; // Надпись в центре
+
+                    std::string deathText = "== YOU DIED ==";
                     int textY = levelData.size() / 2;
                     int textX = (levelData[0].size() - deathText.length()) / 2;
 
@@ -360,9 +395,9 @@ void Game::update()
                     attroff(A_BOLD | A_REVERSE);
 
                     refresh();
-                    napms(3000); // На 3 секунды
+                    napms(3000);
                 }
-                break;
+                break; // И здесь тоже прерываем цикл после столкновения
             }
         }
     }
