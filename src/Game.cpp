@@ -20,9 +20,10 @@ void Game::initialize()
         init_pair(1, COLOR_YELLOW, COLOR_BLACK);  // игрок
         init_pair(2, COLOR_BLUE, COLOR_BLACK);    // итены
         init_pair(3, COLOR_WHITE, COLOR_BLACK);   // точки
-        init_pair(4, COLOR_MAGENTA, COLOR_BLACK); // Призрак 1
-        init_pair(5, COLOR_CYAN, COLOR_BLACK);    // Призрак 2
-        init_pair(6, COLOR_RED, COLOR_BLACK);     // Призрак 3
+        init_pair(4, COLOR_RED, COLOR_BLACK);     // Blinky (красный)
+        init_pair(5, COLOR_MAGENTA, COLOR_BLACK); // Pinky (розовый)
+        init_pair(6, COLOR_CYAN, COLOR_BLACK);    // Inky (голубой)
+        init_pair(8, 202, COLOR_BLACK);           // Clyde (оранжевый)
         init_pair(7, COLOR_WHITE, COLOR_BLUE);    // Режим призраков при съедении усиления
     }
     if (!has_colors())
@@ -33,7 +34,7 @@ void Game::initialize()
     }
 
     refresh(); // Обновление экрана
-    loadLevel("../assets/levels/level_one.txt");
+    loadLevel(levelFiles[currentLevel]);
     ; // в инициализацию добавил загрузку уровня
 
     // поиск начальной позиции плеера
@@ -78,7 +79,7 @@ void Game::initialize()
     for (int i = 0; i < spawns.size() && i < ghostTypes.size(); ++i)
     {
         auto [gx, gy] = spawns[i];
-        ghosts.emplace_back(gx, gy, 4 + i, ghostTypes[i]);
+        ghosts.emplace_back(gx, gy, 4 + i, ghostTypes[i], levelData);
         levelData[gy][gx] = ' ';
     }
 
@@ -106,6 +107,7 @@ bool Game::tryMovePlayer(int dx, int dy)
         if (levelData[newY][newX] == '.')
         {
             score += 10;
+            dotsEaten++;
         }
         else if (levelData[newY][newX] == 'o')
         {
@@ -115,7 +117,7 @@ bool Game::tryMovePlayer(int dx, int dy)
 
             for (auto &ghost : ghosts)
             {
-                ghost.setVulnerable(true);
+                ghost.setMode(GhostMode::FRIGHTENED);
             }
         }
         // обновление позиции плеера
@@ -157,7 +159,7 @@ bool Game::tryMovePlayer2(int d2x, int d2y)
 
             for (auto &ghost : ghosts)
             {
-                ghost.setVulnerable(true);
+                ghost.setMode(GhostMode::FRIGHTENED);
             }
         }
         // обновление позиции плеера
@@ -235,9 +237,40 @@ void Game::processInput()
     // Пауза на Esc
     case 27:
         isPaused = !isPaused;
+    case L'1':
+    case L'2':
+    case L'3':
+    case L'4':
+    case L'5':
+    case L'6':
+    case L'7':
+    case L'8':
+    case L'9':
+    case L'0':
+    {
+        if (ch == L'0')
+        {
+            int selected = 9;
+            currentLevel = selected;
+            ghosts.clear();
+            initialize();
+            break;
+        }
+
+        else
+        {
+            int selected = ch - L'1';
+            if (selected < levelFiles.size())
+            {
+                currentLevel = selected;
+                ghosts.clear(); // очистить старых призраков
+                initialize();   // перезапустить на новом уровне
+            }
+            break;
+        }
+    }
     }
 }
-
 void Game::update()
 {
     // Попытка изменить направление, если возможно
@@ -281,17 +314,35 @@ void Game::update()
             dir2Y = nextDir2Y;
         }
     }
+    // Глобальное переключение режимов призраков
+    ghostModeGlobalTicks++;
+    if (ghostModeGlobalTicks > modeDurations[currentModeIndex])
+    {
+        currentModeIndex = (currentModeIndex + 1) % modeDurations.size();
+        ghostModeGlobalTicks = 0;
+        if (ghostGlobalMode == GhostMode::SCATTER)
+            ghostGlobalMode = GhostMode::CHASE;
+        else
+            ghostGlobalMode = GhostMode::SCATTER;
 
+        for (auto &ghost : ghosts)
+        {
+            if (ghost.getMode() != GhostMode::FRIGHTENED && ghost.getMode() != GhostMode::EATEN)
+            {
+                ghost.setMode(ghostGlobalMode);
+            }
+        }
+    }
     if (powerUpActive)
     {
         powerUpTicks--;
-        if (powerUpTicks == 0)
+        if (powerUpTicks <= 0)
         {
             powerUpActive = false;
 
             for (auto &ghost : ghosts)
             {
-                ghost.setVulnerable(false);
+                ghost.setMode(ghost.getPreviousMode());
             }
         }
     }
@@ -306,9 +357,10 @@ void Game::update()
     for (auto &g : ghosts)
         if (g.getType() == GhostType::BLINKY)
             blinky = &g;
+
     for (auto &g : ghosts)
     {
-        g.calculateTarget(playerX, playerY, dirX, dirY, blinky, levelData);
+        g.calculateTarget(playerX, playerY, dirX, dirY, blinky, levelData, dotsEaten);
         g.update(levelData);
     }
     // проверка стычьки с призраками
@@ -320,7 +372,7 @@ void Game::update()
             (twoPlayers && ((player2X == ghost.getX() && player2Y == ghost.getY()) ||
                             (player2X == ghost.getPrevX() && player2Y == ghost.getPrevY()))))
         {
-            if (ghost.isVulnerable())
+            if (ghost.getMode() == GhostMode::FRIGHTENED)
             {
                 score += 200;
 
@@ -333,13 +385,7 @@ void Game::update()
 
                 ghost.respawn();
 
-                // После respawn координаты должны быть достоверные, но на всякий случай проверим
-                if (ghost.getY() >= 0 && ghost.getY() < (int)levelData.size() &&
-                    ghost.getX() >= 0 && ghost.getX() < (int)levelData[ghost.getY()].size())
-                {
-                    levelData[ghost.getY()][ghost.getX()] = 'G';
-                }
-                ghost.setVulnerable(false);
+                ghost.forceMode(ghostGlobalMode);
                 render();
 
                 break; // Выходим из цикла, чтобы не работать с тем же призраком
@@ -376,12 +422,7 @@ void Game::update()
                             levelData[ghost.getY()][ghost.getX()] = ' ';
                         }
                         ghost.respawn();
-                        if (ghost.getY() >= 0 && ghost.getY() < (int)levelData.size() &&
-                            ghost.getX() >= 0 && ghost.getX() < (int)levelData[ghost.getY()].size())
-                        {
-                            levelData[ghost.getY()][ghost.getX()] = 'G';
-                        }
-                        ghost.setVulnerable(false);
+                        ghost.forceMode(ghostGlobalMode);
                     }
 
                     render();
@@ -423,26 +464,46 @@ void Game::update()
         clear();
 
         std::string message = "== LEVEL COMPLETE! ==";
+        std::string border(message.size(), '=');
 
         int winHeight, winWidth;
         getmaxyx(stdscr, winHeight, winWidth);
-
         int msgY = winHeight / 2;
         int msgX = (winWidth - message.size()) / 2;
 
-        attron(A_BOLD | A_REVERSE | COLOR_PAIR(3)); // Белый текст на чёрном фоне
-        mvprintw(msgY - 1, msgX - 2, "=======================");
+        attron(A_BOLD | A_REVERSE | COLOR_PAIR(3));
+        mvprintw(msgY - 1, msgX, "%s", border.c_str());
         mvprintw(msgY, msgX, "%s", message.c_str());
-        mvprintw(msgY + 1, msgX - 2, "=======================");
+        mvprintw(msgY + 1, msgX, "%s", border.c_str());
         attroff(A_BOLD | A_REVERSE | COLOR_PAIR(3));
 
         refresh();
-        napms(5000);
+        napms(3000);
 
-        isRunning = false;
+        currentLevel++;
+        if (currentLevel < levelFiles.size())
+        {
+            ghosts.clear(); // очистить старых призраков
+            initialize();   // перезапускаем игру на новом уровне
+        }
+        else
+        {
+            // Победа во всей игре
+            clear();
+            std::string finalMsg = "== YOU WIN THE GAME! ==";
+            int finalX = (winWidth - finalMsg.length()) / 2;
+            int finalY = winHeight / 2;
+
+            attron(A_BOLD | A_REVERSE | COLOR_PAIR(1));
+            mvprintw(finalY, finalX, "%s", finalMsg.c_str());
+            attroff(A_BOLD | A_REVERSE | COLOR_PAIR(1));
+
+            refresh();
+            napms(5000);
+            isRunning = false;
+        }
     }
 }
-
 void Game::render()
 {
     clear(); // очистка экрана
@@ -511,17 +572,42 @@ void Game::run()
 {
     initialize();
 
+    // Отрисовать сразу уровень
+    render();
+
+    // Показываем сообщение "Готовься!" с обратным отсчетом
+    int waitSeconds = 3; // задержка в секундах
+
+    for (int i = waitSeconds; i > 0; --i)
+    {
+        std::string msg = "Get ready! Starting in " + std::to_string(i) + "...";
+        int msgY = levelData.size() / 2;
+        int msgX = (levelData[0].size() - msg.length()) / 2;
+
+        attron(A_BOLD | A_REVERSE | COLOR_PAIR(3));
+        mvprintw(msgY, msgX, "%s", msg.c_str());
+        attroff(A_BOLD | A_REVERSE | COLOR_PAIR(3));
+
+        refresh();
+
+        napms(1000); // задержка 1 секунда
+
+        // Стираем сообщение перед следующей итерацией
+        move(msgY, msgX);
+        for (size_t j = 0; j < msg.length(); j++)
+            addch(' ');
+    }
+
     timeout(100);
 
     while (isRunning)
-    { // цикл работы программы
+    {
         processInput();
         if (!isPaused)
         {
             update();
             render();
         }
-        // Если на паузе, ставим надпись по центру.
         else
         {
             std::string pauseText = "== PAUSED ==";
@@ -537,7 +623,7 @@ void Game::run()
     }
     cleanup();
 
-    std::cout << "Game running" << std::endl;
+    std::cout << "Game finished" << std::endl;
 }
 
 // войд функция для загрузки уровня

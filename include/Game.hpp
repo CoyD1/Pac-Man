@@ -18,6 +18,7 @@ public:
     }
 
 private:
+    void nextLevel();
     void initialize();
     void processInput();
     void update();
@@ -54,12 +55,32 @@ private:
     bool powerUpActive = false;
     int powerUpTicks = 0;
     int maxPowerUpTicks = 50; // Длительность усиления 5 секунд, так как тик 100 мс
+    int ghostModeGlobalTicks = 0;
+    // Глобальный счёт времени для изменения режима
+    GhostMode ghostGlobalMode = GhostMode::SCATTER;
+    std::vector<int> modeDurations = {70, 200, 70, 200, 70, 200, 70};
+    int currentModeIndex = 0;
 
     bool isPaused = false;
 
     std::vector<Ghost> ghosts;
     int lives; // ПОДСЧЕТ жизней
     std::vector<std::pair<int, int>> findFreePositions(char allowed = '\0');
+
+    int dotsEaten = 0;
+
+    int currentLevel = 0;
+    std::vector<std::string> levelFiles = {
+        "../assets/levels/level_one.txt",
+        "../assets/levels/level_two.txt",
+        "../assets/levels/level_three.txt",
+        "../assets/levels/level_four.txt",
+        "../assets/levels/level_five.txt",
+        "../assets/levels/level_six.txt",
+        "../assets/levels/level_seven.txt",
+        "../assets/levels/level_eight.txt",
+        "../assets/levels/level_nine.txt",
+        "../assets/levels/level_ten.txt"};
 };
 
 #endif
